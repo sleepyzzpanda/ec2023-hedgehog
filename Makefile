@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -pedantic
-SRC = main.c 
+SRC = main.c list.c
 OBJ = $(SRC:.c=.o)
 EXECUTABLE = app_test.o
 
@@ -13,4 +13,4 @@ $(EXECUTABLE): $(OBJ)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
-	rm -f $(OBJ) $(EXECUTABLE)
+	rm -rf main main.o app_test.o *~
