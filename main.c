@@ -18,8 +18,82 @@
 
 List* inputLst; // global lists for input and output messages
 List* outputLst;
+List* alertLst;
 bool isRunning = true;
 pthread_mutex_t inputMutex, outputMutex = PTHREAD_MUTEX_INITIALIZER;
+
+void* keyboardInput(void* arg);
+void* printToScreen(void* arg);
+void* server_program(void* arg);
+void* client_program(void* arg);
+
+void menu_display_user();
+
+
+// [my port number] [remote machine name] [remote port number]
+int main(int argc, char*argv[]){
+
+    (void)argc; // unused
+   
+    inputLst = List_create();
+    outputLst = List_create();
+    char* port_send = argv[1];
+    char* port_receive = argv[3];
+    char* hostname = argv[2];
+    pthread_t keyboard_in_thread, receive_thread, print_thread, send_thread; // defining the thread ID's
+    int r1, r2, r3, r4;
+
+    // creating the threads
+    printf("initiallizing communication with [%s] over port %s\n", hostname, port_send);
+    r1 = pthread_create(&keyboard_in_thread, NULL, keyboardInput, NULL); // creating the keyboard thread
+    if(r1) {
+        printf("Error: pthread_create() failed\n");
+        return -1;
+    }
+    
+    r2 = pthread_create(&print_thread, NULL, printToScreen, (void*)hostname); // creating the print thread
+    if(r2) {
+        printf("Error: pthread_create() failed\n");
+        return -1;
+    }
+    // server thread
+    r3 = pthread_create(&receive_thread, NULL, server_program, (void*)port_receive);
+    if(r3) {
+        printf("Error: pthread_create() failed\n");
+        return -1;
+    }
+    // client thread
+    r4 = pthread_create(&send_thread, NULL, client_program, (void*)port_send);
+    if(r4) {
+        printf("Error: pthread_create() failed\n");
+        return -1;
+    }
+    int s1, s2;
+    while(1){
+        s1 = pthread_tryjoin_np(keyboard_in_thread, NULL);
+        s2 = pthread_tryjoin_np(receive_thread, NULL);
+
+        if(s1 == 0 || s2 == 0){
+            break;
+        }
+    }
+    
+    pthread_cancel(print_thread);
+    pthread_cancel(send_thread);
+    if(s1){
+        pthread_cancel(keyboard_in_thread);
+    }
+    if(s2){
+        pthread_cancel(receive_thread);
+    }
+    List_free(inputLst, free);
+    List_free(outputLst, free);
+
+
+    // exiting the program
+    printf("Communication with [%s] over port %s has ended\n", hostname, port_send);
+    return 0;    
+}
 
 void *keyboardInput(void *arg){
     // this function will be used to get input from the keyboard
@@ -193,72 +267,35 @@ void *client_program(void *arg){
     pthread_exit(NULL);
 }
 
-// [my port number] [remote machine name] [remote port number]
-int main(int argc, char*argv[]){
 
-    (void)argc; // unused
-   
-    inputLst = List_create();
-    outputLst = List_create();
-    char* port_send = argv[1];
-    char* port_receive = argv[3];
-    char* hostname = argv[2];
-    pthread_t keyboard_in_thread, receive_thread, print_thread, send_thread; // defining the thread ID's
-    int r1, r2, r3, r4;
+void menu_display_user(){
+    int input;
+    printf("Welcome to the main menu!\n");
+    printf("Please select an option:\n");
+    printf("1. See Current Alerts\n");
+    printf("2. Report an Incident\n");
+    printf("3. See General Information\n");
+    printf("4. Exit\n");
+    scanf("%d", &input);
 
-    // creating the threads
-    printf("initiallizing communication with [%s] over port %s\n", hostname, port_send);
-    r1 = pthread_create(&keyboard_in_thread, NULL, keyboardInput, NULL); // creating the keyboard thread
-    if(r1) {
-        printf("Error: pthread_create() failed\n");
-        return -1;
-    }
-    
-    r2 = pthread_create(&print_thread, NULL, printToScreen, (void*)hostname); // creating the print thread
-    if(r2) {
-        printf("Error: pthread_create() failed\n");
-        return -1;
-    }
-
-
-    // server thread
-    r3 = pthread_create(&receive_thread, NULL, server_program, (void*)port_receive);
-    if(r3) {
-        printf("Error: pthread_create() failed\n");
-        return -1;
-    }
-    
-    // client thread
-    r4 = pthread_create(&send_thread, NULL, client_program, (void*)port_send);
-    if(r4) {
-        printf("Error: pthread_create() failed\n");
-        return -1;
-    }
-    // // joining the threads
-    // pthread_join(keyboard_in_thread, NULL);
-    int s1, s2;
-    while(1){
-        s1 = pthread_tryjoin_np(keyboard_in_thread, NULL);
-        s2 = pthread_tryjoin_np(receive_thread, NULL);
-
-        if(s1 == 0 || s2 == 0){
+    switch(input){
+        case 1:
+            // see current alerts
+            
             break;
-        }
+        case 2:
+            // report an incident
+            break;
+        case 3:
+            // see general information
+            break;
+        case 4:
+            // exit
+            break;
+        default:
+            printf("Invalid input\n");
+            break;
     }
-    
-    pthread_cancel(print_thread);
-    pthread_cancel(send_thread);
-    if(s1){
-        pthread_cancel(keyboard_in_thread);
-    }
-    if(s2){
-        pthread_cancel(receive_thread);
-    }
-    List_free(inputLst, free);
-    List_free(outputLst, free);
 
-
-    // exiting the program
-    printf("Communication with [%s] over port %s has ended\n", hostname, port_send);
-    return 0;    
+    return;
 }

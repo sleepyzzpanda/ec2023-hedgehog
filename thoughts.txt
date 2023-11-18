@@ -1,1 +1,11 @@
 -> i have no thoughts rn <3
+
+NEEDS TO STOREV ALERT LOG!!!
+
+The app has 6 pages available to users with their layout and use described below:
+1.	Home Page
+2.	Natural disaster alerts
+3.	Evacuation alerts and information
+4.	Reporting natural disasters
+5.	Community and emergency messaging
+6.	Widget
