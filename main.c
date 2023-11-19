@@ -20,61 +20,91 @@ List* inputLst; // global lists for input and output messages
 List* outputLst;
 List* alertLst;
 bool isRunning = true;
+bool admin = false;
 pthread_mutex_t inputMutex, outputMutex = PTHREAD_MUTEX_INITIALIZER;
+
+pthread_t keyboard_in_thread, receive_thread, print_thread, send_thread, menu_thread; // defining the thread ID's
+int r1, r2, r3, r4; // return values for the threads
 
 void* keyboardInput(void* arg);
 void* printToScreen(void* arg);
 void* server_program(void* arg);
 void* client_program(void* arg);
+void* menu_thread_p(void* arg);
 
-void menu_display_user(char* port_send, char* port_receive, char* hostname);
-void menu_display_admin(char* port_send, char* port_receive, char* hostname);
+void menu_display_user(char* hostname);
+void menu_display_admin( char* hostname);
 void print_alerts();
 void publish_alert(char* alert);
-int messaging_th(char* port_send, char* port_receive, char* hostname);
+int messaging_th(char* hostname);
 
 
 // [my port number] [remote machine name] [remote port number]
 int main(int argc, char*argv[]){
-
     (void)argc; // unused
    
     inputLst = List_create();
     outputLst = List_create();
     alertLst = List_create();
 
-    printf("Select user type:\n");
-    printf("1. Admin\n");
-    printf("2. User\n");
-    int input = 0;
-    scanf("%d", &input);
-
+    // for testing purposes
     List_append(alertLst, "ALERT: There is a fire in the area");
+    int r5;
 
 
     char* port_send = argv[1];
     char* port_receive = argv[3];
     char* hostname = argv[2];
 
+    // server thread
+    r3 = pthread_create(&receive_thread, NULL, server_program, (void*)port_receive);
+    if(r3) {
+        printf("Error: pthread_create() failed\n");
+        return -1;
+    }
+    // client thread
+    r4 = pthread_create(&send_thread, NULL, client_program, (void*)port_send);
+    if(r4) {
+        printf("Error: pthread_create() failed\n");
+        return -1;
+    }
+
+    r5 = pthread_create(&menu_thread, NULL, menu_thread_p, (void*)hostname);
+    if(r5) {
+        printf("Error: pthread_create() failed\n");
+        return -1;
+    }
+
+    pthread_join(menu_thread, NULL);
+    return 0;    
+}
+
+void* menu_thread_p(void* arg){
+    char* hostname_ptr = (char*)arg;
+    printf("Select user type:\n");
+    printf("1. Admin\n");
+    printf("2. User\n");
+    int input = 0;
+    scanf("%d", &input);
+    getchar();
     switch(input){
         case 1:
             // admin
             while(1){
-                menu_display_admin(port_send, port_receive, hostname);
+                menu_display_admin(hostname_ptr);
             }
             break;
         case 2:
             // user
             while(1){
-                menu_display_user(port_send, port_receive, hostname);
+                menu_display_user(hostname_ptr);
             }
             break;
         default:
             printf("Invalid input\n");
             break;
     }
-    
-    return 0;    
+    pthread_exit(NULL);
 }
 
 void *keyboardInput(void *arg){
@@ -180,6 +210,9 @@ void *server_program(void *arg){
             // lock before getting output
             pthread_mutex_lock(&outputMutex);
             List_append(inputLst, &client_message);
+            if(!admin){
+                List_append(alertLst, &client_message);
+            }
             pthread_mutex_unlock(&outputMutex);
             if(client_message[0] == '!') {
                 break;
@@ -250,7 +283,7 @@ void *client_program(void *arg){
 }
 
 
-void menu_display_user(char* port_send, char* port_receive, char* hostname){
+void menu_display_user(char* hostname){
     int input = 0;
     printf("Welcome to the User menu!\n");
     printf("Please select an option:\n");
@@ -267,13 +300,13 @@ void menu_display_user(char* port_send, char* port_receive, char* hostname){
             break;
         case 2:
             // report an incident
-            messaging_th(port_send, port_receive, hostname);
+            messaging_th(hostname);
             break;
         case 3:
             // see general information
             printf("General Information:\n");
             printf("here is where the general information will be displayed\n");
-            printf("i dont have any written down bc time sorry :3\n")
+            printf("i dont have any written down bc time sorry :3\n");
             break;
         case 4:
             // exit
@@ -289,7 +322,8 @@ void menu_display_user(char* port_send, char* port_receive, char* hostname){
     return;
 }
 
-void menu_display_admin(char* port_send, char* port_receive, char* hostname){
+void menu_display_admin(char* hostname){
+    admin = true;
     int input;
     printf("Welcome to the Admin menu!\n");
     printf("Please select an option:\n");
@@ -316,7 +350,7 @@ void menu_display_admin(char* port_send, char* port_receive, char* hostname){
             break;
         case 3:
             // make community message
-            messaging_th(port_send, port_receive, hostname);
+            messaging_th(hostname);
             break;
         case 4:
             // exit
@@ -349,11 +383,9 @@ void print_alerts(){
     }
 }
 
-int messaging_th(char* port_send, char* port_receive, char* hostname){
-    pthread_t keyboard_in_thread, receive_thread, print_thread, send_thread; // defining the thread ID's
-    int r1, r2, r3, r4;
+int messaging_th(char* hostname){
     // creating the threads
-    printf("initiallizing communication with [%s] over port %s\n", hostname, port_send);
+    // printf("initiallizing communication with [%s] over port %s\n", hostname, port_send);
     r1 = pthread_create(&keyboard_in_thread, NULL, keyboardInput, NULL); // creating the keyboard thread
     if(r1) {
         printf("Error: pthread_create() failed\n");
@@ -365,18 +397,7 @@ int messaging_th(char* port_send, char* port_receive, char* hostname){
         printf("Error: pthread_create() failed\n");
         return -1;
     }
-    // server thread
-    r3 = pthread_create(&receive_thread, NULL, server_program, (void*)port_receive);
-    if(r3) {
-        printf("Error: pthread_create() failed\n");
-        return -1;
-    }
-    // client thread
-    r4 = pthread_create(&send_thread, NULL, client_program, (void*)port_send);
-    if(r4) {
-        printf("Error: pthread_create() failed\n");
-        return -1;
-    }
+    
     int s1, s2;
     while(1){
         s1 = pthread_tryjoin_np(keyboard_in_thread, NULL);
@@ -388,7 +409,7 @@ int messaging_th(char* port_send, char* port_receive, char* hostname){
     }
     
     pthread_cancel(print_thread);
-    pthread_cancel(send_thread);
+    // pthread_cancel(send_thread);
     if(s1){
         pthread_cancel(keyboard_in_thread);
     }
@@ -400,6 +421,6 @@ int messaging_th(char* port_send, char* port_receive, char* hostname){
 
 
     // exiting the program
-    printf("Communication with [%s] over port %s has ended\n", hostname, port_send);
+    printf("Communication with [%s] has ended\n", hostname);
     return 0;
 }
